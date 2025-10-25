@@ -69,16 +69,18 @@ export const paddleService = {
 
       const transaction = response.data.data;
 
-      // ✅ FIX: Use correct checkout URL based on environment
-      const checkoutUrl = `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
+      // ✅ FIX: Use Paddle's returned checkout URL (it's more reliable)
+      const checkoutUrl = transaction.checkout?.url || `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
 
       console.log('✅ Paddle transaction created:', transaction.id);
-      console.log(`   Checkout URL: ${checkoutUrl}`);
+      console.log(`   Transaction status: ${transaction.status}`);
+      console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
+      console.log(`   Final checkout URL: ${checkoutUrl}`);
 
       return {
         success: true,
         transaction_id: transaction.id,
-        checkout_url: checkoutUrl,  // ✅ Use our constructed URL
+        checkout_url: checkoutUrl,
         status: transaction.status,
       };
     } catch (error) {
@@ -177,17 +179,19 @@ export const paddleService = {
 
       const transaction = response.data.data;
 
-      // ✅ FIX: Use correct checkout URL based on environment
-      const checkoutUrl = `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
+      // ✅ FIX: Use Paddle's returned checkout URL (it's more reliable)
+      const checkoutUrl = transaction.checkout?.url || `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
 
       console.log('✅ Paddle subscription transaction created');
       console.log(`   Transaction ID: ${transaction.id}`);
-      console.log(`   Checkout URL: ${checkoutUrl}`);
+      console.log(`   Transaction status: ${transaction.status}`);
+      console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
+      console.log(`   Final checkout URL: ${checkoutUrl}`);
 
       return {
         success: true,
         transaction_id: transaction.id,
-        checkout_url: checkoutUrl,  // ✅ Use our constructed URL
+        checkout_url: checkoutUrl,
         customer_id: customerId,
         status: transaction.status,
       };
