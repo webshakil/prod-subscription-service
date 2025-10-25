@@ -45,7 +45,8 @@ export const paddleService = {
               quantity: 1,
             },
           ],
-          customer_email: email,
+          // ✅ REMOVED: customer_email - Let Paddle collect it at checkout
+          // This makes transaction status "ready" instead of "draft"
           custom_data: {
             user_id: user_id.toString(),
             plan_id: planId?.toString(),
