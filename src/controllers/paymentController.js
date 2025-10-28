@@ -101,10 +101,25 @@ const recommendation = await gatewayRecommendationService.getRecommendation(coun
 const regionData = { region: recommendation.region };
       
       // Check regional pricing
-      const regionalPrice = await regionalPricingQueries.getRegionalPrice(
-        plan_id,
-        regionData.region
-      );
+      // ✅ CORRECT:
+let regionalPrice = { rows: [] }; // Initialize with empty rows
+try {
+  regionalPrice = await regionalPricingQueries.getRegionalPrice(
+    plan_id,
+    regionData.region
+  );
+  // Ensure it has a rows property
+  if (!regionalPrice || !regionalPrice.rows) {
+    regionalPrice = { rows: [] };
+  }
+} catch (error) {
+  console.log('No regional pricing found, using base price');
+  regionalPrice = { rows: [] };
+}
+      // const regionalPrice = await regionalPricingQueries.getRegionalPrice(
+      //   plan_id,
+      //   regionData.region
+      // );
 
       // Use regional price if available, otherwise use base price
       let finalAmount = amount || planData.price;
