@@ -22,14 +22,14 @@ export const validateSubscriptionPlan = (req, res, next) => {
 };
 
 export const validatePaymentData = (req, res, next) => {
-  const { amount, currency, country_code, payment_method, planId } = req.body;
+  const { amount, currency, country_code, payment_method, plan_id } = req.body;  // ✅ FIXED
 
   const errors = [];
 
   if (!amount || typeof amount !== 'number' || amount <= 0) errors.push('Valid amount required');
   if (!currency || typeof currency !== 'string') errors.push('Valid currency required');
   if (!country_code || typeof country_code !== 'string') errors.push('Valid country_code required');
-  if (!planId) errors.push('Plan ID required');
+  if (!plan_id) errors.push('Plan ID required');  // ✅ FIXED
   if (payment_method && !['card', 'paypal', 'google_pay', 'apple_pay'].includes(payment_method)) {
     errors.push('Invalid payment method');
   }
@@ -107,26 +107,22 @@ export const validateGatewayConfig = (req, res, next) => {
 //   next();
 // };
 
-
-
-
-
-
-
-
-
 // export const validateGatewayConfig = (req, res, next) => {
-//   const { region, gateway_type, stripe_enabled, paddle_enabled, recommendation_reason } = req.body;
+//   const { gateway_type, stripe_enabled, paddle_enabled, recommendation_reason } = req.body;
+//   const { regionId } = req.params;
 
 //   const errors = [];
 
-//   if (!region) errors.push('Region required');
+//   if (!regionId) errors.push('Region required');
 //   if (!gateway_type) errors.push('Gateway type required');
 //   if (typeof stripe_enabled !== 'boolean') errors.push('stripe_enabled must be boolean');
 //   if (typeof paddle_enabled !== 'boolean') errors.push('paddle_enabled must be boolean');
-//   if (!recommendation_reason || typeof recommendation_reason !== 'string') {
-//     errors.push('Recommendation reason required');
-//   }
+//   // if (!recommendation_reason || typeof recommendation_reason !== 'string') {
+//   //   errors.push('Recommendation reason required');
+//   // }
+//   if (recommendation_reason && typeof recommendation_reason !== 'string') {
+//   errors.push('Recommendation reason must be string');
+// }
 
 //   if (errors.length > 0) {
 //     return res.status(400).json({ errors });
