@@ -8,6 +8,7 @@ import { paymentQueries } from '../models/paymentQueries.js';
 import { subscriptionQueries } from '../models/subscriptionQueries.js';
 import { simplePlanUpdateService } from '../services/simplePlanUpdateService.js';
 import { query } from '../config/database.js';
+import { gatewayRecommendationService } from '../services/gatewayRecommendationService.js';
 
 export const paymentController = {
 
