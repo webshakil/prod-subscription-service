@@ -47,7 +47,10 @@ export const webhookService = {
 
     try {
       // ✅ FIXED: Extract plan_id from metadata
-      const plan_id = paymentIntent.metadata?.plan_id || null;
+      //const plan_id = paymentIntent.metadata?.plan_id || null;
+      const plan_id = paymentIntent.metadata?.plan_id && paymentIntent.metadata.plan_id !== "" 
+  ? paymentIntent.metadata.plan_id 
+  : null;
       const user_id = paymentIntent.metadata?.user_id;
 
       console.log('🔍 Extracted plan_id:', plan_id);
