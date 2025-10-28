@@ -14,11 +14,7 @@ import { simplePlanUpdateService } from '../services/simplePlanUpdateService.js'
 import { query } from '../config/database.js';
 
 export const paymentController = {
-  // ========================================
-  // EXISTING ENDPOINTS
-  // ========================================
 
-  // Get gateway recommendation for country
   getGatewayRecommendation: async (req, res, next) => {
     try {
       const { country_code, plan_id } = req.query;
@@ -85,7 +81,7 @@ export const paymentController = {
       }
 
       // Get plan details
-      const planResult = await subscriptionQueries.getPlanById(planId);
+      const planResult = await subscriptionQueries.getPlanById(plan_id);
       if (!planResult.rows[0]) {
         return res.status(404).json({ error: 'Plan not found' });
       }
