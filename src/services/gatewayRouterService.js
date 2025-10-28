@@ -10,7 +10,7 @@ export const gatewayRouterService = {
   // Create payment with country-based routing
   createPaymentByCountry: async (data) => {
     try {
-      const { amount, currency, country_code, payment_method, user_id, email, planId } = data;
+      const { amount, currency, country_code, payment_method, user_id, email, plan_id } = data;
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('🌍 Gateway Router - Country-Based Routing');
@@ -21,8 +21,8 @@ export const gatewayRouterService = {
 
       // Get plan details first
       let planDetails = null;
-      if (planId) {
-        const planResult = await subscriptionQueries.getPlanById(planId);
+      if (plan_id) {
+        const planResult = await subscriptionQueries.getPlanById(plan_id);
         planDetails = planResult.rows[0];
 
           console.log('━━━ DEBUG PLAN DATA ━━━');
@@ -45,7 +45,7 @@ export const gatewayRouterService = {
       }
 
       // Get recommendation and select gateway
-      const recommendation = await gatewayRecommendationService.getRecommendation(country_code, planId);
+      const recommendation = await gatewayRecommendationService.getRecommendation(country_code, plan_id);
       const gatewaySelection = await gatewayRecommendationService.selectGatewayForPayment(country_code);
 
       console.log(`✅ Selected Gateway: ${gatewaySelection.gateway.toUpperCase()}`);
@@ -73,7 +73,7 @@ export const gatewayRouterService = {
         user_id,
         email: email || `user${user_id}@votteryy.com`,
         region: recommendation.region,
-        planId,
+        plan_id,
       };
 
       // Route to appropriate gateway
@@ -89,7 +89,7 @@ export const gatewayRouterService = {
         // ✅ FIX: Only check paddle_price_id for recurring plans
         if (!planDetails?.paddle_price_id) {
           throw new Error(
-            `Plan "${planDetails?.plan_name || planId}" does not have a paddle_price_id. Please create a Paddle price for this plan in Paddle Dashboard.`
+            `Plan "${planDetails?.plan_name || plan_id}" does not have a paddle_price_id. Please create a Paddle price for this plan in Paddle Dashboard.`
           );
         }
 
