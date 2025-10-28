@@ -121,7 +121,7 @@ export const webhookService = {
           await subscriptionQueries.updateSubscription(existingSub.rows[0].id, {
             plan_id: plan_id,
             status: 'active',
-            current_period_end: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days for quarterly
+            end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days for quarterly
           });
         } else {
           console.log('✨ Creating new subscription');
@@ -130,8 +130,8 @@ export const webhookService = {
             user_id,
             plan_id: plan_id,
             status: 'active',
-            current_period_start: new Date(),
-            current_period_end: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
+            start_date: new Date(),
+            end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
             gateway,
             external_subscription_id: paymentIntent.id, // Use payment intent as reference
           });
@@ -203,8 +203,8 @@ export const webhookService = {
 
       const subscriptionData = {
         status: subscription.status,
-        current_period_start: new Date(subscription.current_period_start * 1000),
-        current_period_end: new Date(subscription.current_period_end * 1000),
+        start_date: new Date(subscription.start_date * 1000),
+        end_date: new Date(subscription.end_date * 1000),
         external_subscription_id: subscription.id,
         plan_id: plan_id || null, // ✅ ADDED: Include plan_id
       };
@@ -357,8 +357,8 @@ export const webhookService = {
 
       const subscriptionData = {
         status: subscription.status === 'active' ? 'active' : 'inactive',
-        current_period_start: new Date(subscription.current_billing_period?.starts_at),
-        current_period_end: new Date(subscription.current_billing_period?.ends_at),
+        start_date: new Date(subscription.current_billing_period?.starts_at),
+        end_date: new Date(subscription.current_billing_period?.ends_at),
         external_subscription_id: subscription.id,
         plan_id: plan_id || null, // ✅ ADDED: Include plan_id
       };
