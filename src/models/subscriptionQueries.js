@@ -225,15 +225,7 @@ getUserSubscription: async (userId) => {
   `;
   return query(sql, [userId, 'active']);
 },
-  // getUserSubscription: async (userId) => {
-  //   const sql = `
-  //     SELECT us.*, sp.* FROM votteryy_user_subscriptions us
-  //     JOIN votteryy_subscription_plans sp ON us.plan_id = sp.id
-  //     WHERE us.user_id = $1 AND us.status = $2
-  //     ORDER BY us.created_at DESC LIMIT 1;
-  //   `;
-  //   return query(sql, [userId, 'active']);
-  // },
+
 
   // Update subscription status
   updateSubscriptionStatus: async (subscriptionId, status) => {
@@ -268,6 +260,59 @@ getUserSubscription: async (userId) => {
     `;
     return query(sql, [userId, limit, offset]);
   },
+
+
+  //two new functions
+  updateSubscription: async (subscriptionId, data) => {
+  const fields = [];
+  const values = [];
+  let paramCount = 1;
+
+  // Build dynamic update query
+  Object.entries(data).forEach(([key, value]) => {
+    if (key !== 'id') {
+      fields.push(`${key} = $${paramCount++}`);
+      values.push(value);
+    }
+  });
+
+  if (fields.length === 0) {
+    throw new Error('No fields to update');
+  }
+
+  fields.push(`updated_at = NOW()`);
+  values.push(subscriptionId);
+
+  const sql = `
+    UPDATE votteryy_user_subscriptions 
+    SET ${fields.join(', ')} 
+    WHERE id = $${paramCount}
+    RETURNING *;
+  `;
+  return query(sql, values);
+},
+
+
+createSubscription: async (data) => {
+  const sql = `
+    INSERT INTO votteryy_user_subscriptions 
+    (user_id, plan_id, status, start_date, end_date, gateway_used, 
+     external_subscription_id, payment_type, auto_renew)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING *;
+  `;
+  return query(sql, [
+    data.user_id,
+    data.plan_id,
+    data.status || 'active',
+    data.current_period_start || new Date(),
+    data.current_period_end,
+    data.gateway,
+    data.external_subscription_id,
+    data.payment_type || 'recurring',
+    data.auto_renew ?? true
+  ]);
+},
 };
 // import { query } from '../config/database.js';
 
