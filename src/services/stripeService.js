@@ -6,6 +6,8 @@ export const stripeService = {
   createPaymentIntent: async (data) => {
     try {
       const { amount, currency, payment_method, user_id, country_code, region, plan_id } = data; // ✅ ADDED: plan_id
+      console.log('🔍 STRIPE SERVICE - Received plan_id:', plan_id); // ← ADD THIS
+    console.log('🔍 Full data:', data); // ← ADD THIS
 
       // Create payment intent WITHOUT confirming (frontend will confirm)
       const paymentIntent = await stripeClient.paymentIntents.create({
