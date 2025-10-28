@@ -94,7 +94,10 @@ createPayment: async (req, res, next) => {
       }
 
       // Get user's region
-      const regionData = await gatewayRecommendationService.getUserRegion(country_code);
+      // const regionData = await gatewayRecommendationService.getUserRegion(country_code);
+      // ✅ CORRECT:
+const recommendation = await gatewayRecommendationService.getRecommendation(country_code, plan_id);
+const regionData = { region: recommendation.region };
       
       // Check regional pricing
       const regionalPrice = await regionalPricingQueries.getRegionalPrice(
