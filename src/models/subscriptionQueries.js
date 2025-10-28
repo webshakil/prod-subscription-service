@@ -154,7 +154,7 @@ export const subscriptionQueries = {
       INSERT INTO votteryy_user_subscriptions 
       (user_id, plan_id, gateway_used, external_subscription_id, status, 
        start_date, end_date, auto_renew)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (user_id, external_subscription_id) 
       DO UPDATE SET
         status = EXCLUDED.status,
