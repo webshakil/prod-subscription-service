@@ -190,7 +190,9 @@ export const paymentController = {
   // Create payment with country routing (handles pay-as-you-go + recurring)
   createPayment: async (req, res, next) => {
     try {
+       console.log('🚀 PAYMENT CONTROLLER VERSION: 2025-10-28-FINAL'); // ← ADD THIS
       const { amount, currency, payment_method, country_code, region, plan_id } = req.body;
+      console.log('🔍 CONTROLLER - Extracted plan_id:', plan_id); // ← ADD THIS
       const userId = req.headers['x-user-id'];
       let userEmail = req.headers['x-user-email'] || req.user?.email;
 
