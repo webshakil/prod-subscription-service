@@ -153,7 +153,7 @@ export const subscriptionQueries = {
     const sql = `
       INSERT INTO votteryy_user_subscriptions 
       (user_id, plan_id, gateway_used, external_subscription_id, status, 
-       start_date, end_date, auto_renew, metadata)
+       start_date, end_date, auto_renew)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (user_id, external_subscription_id) 
       DO UPDATE SET
@@ -171,7 +171,7 @@ export const subscriptionQueries = {
       data.start_date || new Date(),
       data.end_date,
       data.auto_renew ?? true,
-      data.metadata ? JSON.stringify(data.metadata) : null
+      
     ]);
   },
 
