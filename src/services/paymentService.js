@@ -1,7 +1,3 @@
-// backend/src/services/paymentService.js
-// Simplified: Only handles pay-as-you-go
-// All other payments go through your EXISTING gatewayRouterService
-
 import { subscriptionQueries } from '../models/subscriptionQueries.js';
 import { usageQueries } from '../models/usageQueries.js';
 
@@ -12,27 +8,32 @@ export const paymentService = {
   handlePayAsYouGo: async (params) => {
     const { user_id, plan } = params;
 
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('💰 PAY-AS-YOU-GO Plan Activation');
-    console.log(`   Plan: ${plan.plan_name}`);
-    console.log(`   Price per election: $${plan.price_per_unit || plan.price}`);
-    console.log('   No upfront payment required');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    // Activate plan immediately (no payment gateway needed)
-    await subscriptionQueries.createOrUpdateSubscription({
-      user_id,
-      plan_id: plan.id,
-      status: 'active',
-      start_date: new Date(),
-      end_date: null, // No expiry for pay-as-you-go
-      gateway: 'manual',
-      is_recurring: false,
-      metadata: {
+    // Check if user already has an active subscription
+    const existingSub = await subscriptionQueries.getUserSubscription(user_id);
+    
+    if (existingSub.rows.length > 0) {
+      // Update existing subscription to pay-as-you-go plan
+      await subscriptionQueries.updateSubscription(existingSub.rows[0].id, {
+        plan_id: plan.id,
+        status: 'active',
+        start_date: new Date(),
+        end_date: null, // No expiry for pay-as-you-go
+        gateway_used: 'manual',
         payment_type: 'pay_as_you_go',
-        price_per_unit: plan.price_per_unit || plan.price,
-      },
-    });
+      });
+    } else {
+      // Create new subscription for pay-as-you-go
+      await subscriptionQueries.createUserSubscription({
+        user_id,
+        plan_id: plan.id,
+        gateway_used: 'manual',
+        external_subscription_id: `payg_${user_id}_${Date.now()}`,
+        status: 'active',
+        start_date: new Date(),
+        end_date: null, // No expiry for pay-as-you-go
+        auto_renew: false,
+      });
+    }
 
     console.log('✅ Pay-as-you-go plan activated');
 
@@ -49,9 +50,6 @@ export const paymentService = {
     };
   },
 
-  /**
-   * Track usage for pay-as-you-go users
-   */
   trackUsage: async (data) => {
     const { user_id, election_id, usage_type = 'election_created', quantity = 1 } = data;
 
@@ -100,9 +98,7 @@ export const paymentService = {
     return usage;
   },
 
-  /**
-   * Get unpaid usage for billing
-   */
+ 
   getUnpaidUsage: async (user_id) => {
     const usage = await usageQueries.getUnpaidUsage(user_id);
     const total = usage.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
@@ -114,9 +110,7 @@ export const paymentService = {
     };
   },
 
-  /**
-   * Get user's current plan info
-   */
+
   getCurrentPlan: async (user_id) => {
     const subscriptionResult = await subscriptionQueries.getActiveSubscriptionByUserId(user_id);
     
@@ -151,6 +145,145 @@ export const paymentService = {
     return result;
   },
 };
+//last workable codes
+
+// import { subscriptionQueries } from '../models/subscriptionQueries.js';
+// import { usageQueries } from '../models/usageQueries.js';
+
+// export const paymentService = {
+//   /**
+//    * Handle pay-as-you-go plan activation (no payment gateway)
+//    */
+//   handlePayAsYouGo: async (params) => {
+//     const { user_id, plan } = params;
+
+  
+
+//     // Activate plan immediately (no payment gateway needed)
+//     await subscriptionQueries.createOrUpdateSubscription({
+//       user_id,
+//       plan_id: plan.id,
+//       status: 'active',
+//       start_date: new Date(),
+//       end_date: null, // No expiry for pay-as-you-go
+//       gateway: 'manual',
+//       is_recurring: false,
+//       metadata: {
+//         payment_type: 'pay_as_you_go',
+//         price_per_unit: plan.price_per_unit || plan.price,
+//       },
+//     });
+
+//     console.log('✅ Pay-as-you-go plan activated');
+
+//     return {
+//       success: true,
+//       type: 'pay_as_you_go',
+//       message: 'Pay-as-you-go plan activated. You will be charged per election.',
+//       planDetails: {
+//         id: plan.id,
+//         name: plan.plan_name,
+//         pricePerUnit: plan.price_per_unit || plan.price,
+//         paymentType: 'pay_as_you_go',
+//       },
+//     };
+//   },
+
+//   trackUsage: async (data) => {
+//     const { user_id, election_id, usage_type = 'election_created', quantity = 1 } = data;
+
+//     console.log('📊 Tracking usage for pay-as-you-go...');
+
+//     // Get user's active subscription
+//     const subscriptionResult = await subscriptionQueries.getActiveSubscriptionByUserId(user_id);
+    
+//     if (!subscriptionResult || !subscriptionResult.rows || subscriptionResult.rows.length === 0) {
+//       console.log('⚠️  No active subscription found');
+//       return null;
+//     }
+
+//     const subscription = subscriptionResult.rows[0];
+
+//     // Get plan details
+//     const planResult = await subscriptionQueries.getPlanById(subscription.plan_id);
+//     if (!planResult || !planResult.rows || planResult.rows.length === 0) {
+//       throw new Error('Plan not found');
+//     }
+
+//     const plan = planResult.rows[0];
+
+//     // Only track for pay-as-you-go plans
+//     if (plan.payment_type !== 'pay_as_you_go') {
+//       console.log('ℹ️  User is on recurring plan, no usage tracking needed');
+//       return null;
+//     }
+
+//     const pricePerUnit = plan.price_per_unit || plan.price;
+//     const totalAmount = pricePerUnit * quantity;
+
+//     // Record usage
+//     const usage = await usageQueries.createUsage({
+//       user_id,
+//       election_id,
+//       usage_type,
+//       quantity,
+//       price_per_unit: pricePerUnit,
+//       total_amount: totalAmount,
+//       status: 'pending',
+//     });
+
+//     console.log(`✅ Usage tracked: $${totalAmount} (${quantity} × $${pricePerUnit})`);
+
+//     return usage;
+//   },
+
+ 
+//   getUnpaidUsage: async (user_id) => {
+//     const usage = await usageQueries.getUnpaidUsage(user_id);
+//     const total = usage.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
+
+//     return {
+//       items: usage,
+//       total: total.toFixed(2),
+//       count: usage.length,
+//     };
+//   },
+
+
+//   getCurrentPlan: async (user_id) => {
+//     const subscriptionResult = await subscriptionQueries.getActiveSubscriptionByUserId(user_id);
+    
+//     if (!subscriptionResult || !subscriptionResult.rows || subscriptionResult.rows.length === 0) {
+//       return null;
+//     }
+
+//     const subscription = subscriptionResult.rows[0];
+
+//     // Get plan details
+//     const planResult = await subscriptionQueries.getPlanById(subscription.plan_id);
+//     if (!planResult || !planResult.rows || planResult.rows.length === 0) {
+//       return null;
+//     }
+
+//     const plan = planResult.rows[0];
+
+//     const result = {
+//       subscription: subscription,
+//       plan: plan,
+//       status: subscription.status,
+//       isPayAsYouGo: plan.payment_type === 'pay_as_you_go',
+//       isRecurring: subscription.is_recurring,
+//     };
+
+//     // Add usage data for pay-as-you-go
+//     if (result.isPayAsYouGo) {
+//       const unpaidUsage = await paymentService.getUnpaidUsage(user_id);
+//       result.unpaidUsage = unpaidUsage;
+//     }
+
+//     return result;
+//   },
+// };
 // // backend/src/services/paymentService.js
 // // Orchestrator that works WITH your existing services
 
