@@ -14,6 +14,7 @@ router.get('/user/valid', subscriptionController.checkSubscriptionValid);
 router.get('/user/history', subscriptionController.getSubscriptionHistory);
 
 // Admin routes - editable fields only
+
 router.post('/plans', roleCheck(['manager', 'admin']), validateSubscriptionPlan, subscriptionController.createPlan);
 router.put('/plans/:planId', roleCheck(['manager', 'admin']), subscriptionController.updatePlan);
 router.put('/plans/:planId/editable-fields', roleCheck(['manager', 'admin']), subscriptionController.updateEditableFields);
