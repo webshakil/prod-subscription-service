@@ -9,21 +9,7 @@ CREATE TABLE votteryy_country_region_mapping (
 );
 
 -- Subscription Plans
-CREATE TABLE votteryy_subscription_plans (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  price DECIMAL(10, 2) NOT NULL,
-  duration VARCHAR(50) NOT NULL,
-  type VARCHAR(50) NOT NULL,
-  max_elections INTEGER,
-  max_voters_per_election INTEGER,
-  participation_fee_required BOOLEAN DEFAULT FALSE,
-  participation_fee_percentage DECIMAL(5, 2),
-  description TEXT,
-  status VARCHAR(50) DEFAULT 'active',
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
+
 
 --latest plan
 CREATE TABLE votteryy_subscription_plans (

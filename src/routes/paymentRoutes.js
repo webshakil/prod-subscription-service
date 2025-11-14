@@ -1,15 +1,10 @@
-// backend/src/routes/paymentRoutes.js
-// Complete routes with all existing + admin routes
+
 
 import express from 'express';
 import { paymentController } from '../controllers/paymentController.js';
 import { validatePaymentData } from '../middleware/validateInput.js';
 
 const router = express.Router();
-
-// ========================================
-// EXISTING ROUTES
-// ========================================
 
 // Get gateway recommendation
 router.get('/gateway-recommendation', paymentController.getGatewayRecommendation);
@@ -54,10 +49,6 @@ router.get('/admin/plans/:planId', paymentController.getPlanByIdAdmin);
 
 // Update plan price (admin - updates both Votteryy DB and Stripe)
 router.post('/admin/plans/:planId/update-price', paymentController.updatePlanPriceAdmin);
-
-// ========================================
-// Export
-// ========================================
 
 export default router;
 // // backend/src/routes/paymentRoutes.js

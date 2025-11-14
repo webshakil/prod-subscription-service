@@ -1,5 +1,4 @@
-// backend/src/models/usageQueries.js
-// Queries for pay-as-you-go usage tracking
+
 
 import { query } from '../config/database.js';
 
