@@ -153,17 +153,31 @@ export const paddleService = {
       const returnUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
       const requestBody = {
-        items: [{ price_id: paddle_price_id, quantity: 1 }],
-        custom_data: {
-          user_id: user_id.toString(),
-          plan_id: planId.toString(),
-        },
-        checkout: {
-          settings: {
-            success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}&status=success`,
-          },
-        },
-      };
+  items: [{ price_id: paddle_price_id, quantity: 1 }],
+  customer_email: email || `user${user_id}@votteryy.com`,  // ← ADD THIS
+  custom_data: {
+    user_id: user_id.toString(),
+    plan_id: planId.toString(),
+  },
+  checkout: {
+    settings: {
+      success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}&status=success`,
+    },
+  },
+};
+
+      // const requestBody = {
+      //   items: [{ price_id: paddle_price_id, quantity: 1 }],
+      //   custom_data: {
+      //     user_id: user_id.toString(),
+      //     plan_id: planId.toString(),
+      //   },
+      //   checkout: {
+      //     settings: {
+      //       success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}&status=success`,
+      //     },
+      //   },
+      // };
 
       console.log('📤 Request:', JSON.stringify(requestBody, null, 2));
 
