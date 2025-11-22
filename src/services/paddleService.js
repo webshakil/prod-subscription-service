@@ -2,11 +2,20 @@
 import axios from 'axios';
 import { config } from '../config/env.js';
 
-const PADDLE_API_BASE = 'https://api.paddle.com'; // Live API
+// ✅ Sandbox-aware API base URL
+const PADDLE_API_BASE = process.env.PADDLE_ENVIRONMENT === 'production'
+  ? 'https://api.paddle.com'
+  : 'https://sandbox-api.paddle.com';
+
+// ✅ Sandbox-aware Checkout URL
+const PADDLE_CHECKOUT_BASE = process.env.PADDLE_ENVIRONMENT === 'production'
+  ? 'https://buy.paddle.com/checkout'
+  : 'https://sandbox-buy.paddle.com/checkout';
 
 console.log('🔧 Paddle Service Initialized:');
+console.log('   Environment:', process.env.PADDLE_ENVIRONMENT || 'sandbox');
 console.log('   API Base:', PADDLE_API_BASE);
-console.log('   Environment: LIVE (with test cards)');
+console.log('   Checkout Base:', PADDLE_CHECKOUT_BASE);
 
 // ✅ Helper: Get Paddle Price ID from plan name
 const getPaddlePriceId = (planName) => {
@@ -21,11 +30,11 @@ const getPaddlePriceId = (planName) => {
     'pay-as-you-go': process.env.PADDLE_PRICE_PAY_AS_YOU_GO,
     'monthly': process.env.PADDLE_PRICE_MONTHLY,
     'quarterly': process.env.PADDLE_PRICE_QUARTERLY,
-    '3-month-quarterly': process.env.PADDLE_PRICE_QUARTERLY, // Alternative name
+    '3-month-quarterly': process.env.PADDLE_PRICE_QUARTERLY,
     'semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL,
-    '6-month-semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL, // Alternative name
+    '6-month-semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL,
     'annual': process.env.PADDLE_PRICE_ANNUAL,
-    'yearly': process.env.PADDLE_PRICE_ANNUAL, // Alternative name
+    'yearly': process.env.PADDLE_PRICE_ANNUAL,
   };
 
   const priceId = priceIdMap[normalizedName];
@@ -70,7 +79,7 @@ export const paddleService = {
       const paddle_price_id = getPaddlePriceId(plan.plan_name);
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🏓 Creating Paddle Transaction (One-Time)');
+      console.log('🏓 Creating Paddle Transaction (One-Time) - SANDBOX');
       console.log(`   Plan: ${plan.plan_name} (ID: ${planId})`);
       console.log(`   Amount: ${amount} ${currency}`);
       console.log(`   Price ID: ${paddle_price_id}`);
@@ -112,11 +121,11 @@ export const paddleService = {
 
       const transaction = response.data.data;
       
-      // Construct checkout URL (live mode)
+      // ✅ Construct sandbox checkout URL
       const checkoutUrl = transaction.checkout?.url || 
-                         `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`;
+                         `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
 
-      console.log('✅ Paddle Transaction Created:');
+      console.log('✅ Paddle Transaction Created (SANDBOX):');
       console.log(`   Transaction ID: ${transaction.id}`);
       console.log(`   Status: ${transaction.status}`);
       console.log(`   Checkout URL: ${checkoutUrl}`);
@@ -126,7 +135,7 @@ export const paddleService = {
         success: true,
         transaction_id: transaction.id,
         checkout_url: checkoutUrl,
-        checkoutUrl: checkoutUrl, // Alias for compatibility
+        checkoutUrl: checkoutUrl,
         status: transaction.status,
       };
     } catch (error) {
@@ -161,7 +170,7 @@ export const paddleService = {
       const paddle_price_id = getPaddlePriceId(plan.plan_name);
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔄 Creating Paddle Subscription (Recurring)');
+      console.log('🔄 Creating Paddle Subscription (Recurring) - SANDBOX');
       console.log(`   Plan: ${plan.plan_name} (ID: ${planId})`);
       console.log(`   Price ID: ${paddle_price_id}`);
       console.log(`   User: ${user_id}`);
@@ -202,11 +211,11 @@ export const paddleService = {
 
       const transaction = response.data.data;
       
-      // Construct checkout URL (live mode)
+      // ✅ Construct sandbox checkout URL
       const checkoutUrl = transaction.checkout?.url || 
-                         `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`;
+                         `${PADDLE_CHECKOUT_BASE}?_ptxn=${transaction.id}`;
 
-      console.log('✅ Paddle Subscription Created:');
+      console.log('✅ Paddle Subscription Created (SANDBOX):');
       console.log(`   Transaction ID: ${transaction.id}`);
       console.log(`   Status: ${transaction.status}`);
       console.log(`   Checkout URL: ${checkoutUrl}`);
@@ -216,7 +225,7 @@ export const paddleService = {
         success: true,
         transaction_id: transaction.id,
         checkout_url: checkoutUrl,
-        checkoutUrl: checkoutUrl, // Alias for compatibility
+        checkoutUrl: checkoutUrl,
         status: transaction.status,
       };
     } catch (error) {
