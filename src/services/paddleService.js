@@ -1,65 +1,107 @@
 // backend/src/services/paddleService.js
-// Updated with return URLs
-
 import axios from 'axios';
 import { config } from '../config/env.js';
 
-const PADDLE_API_BASE = config.PADDLE_ENVIRONMENT === 'production'
-  ? 'https://api.paddle.com'
-  : 'https://sandbox-api.paddle.com';
+const PADDLE_API_BASE = 'https://api.paddle.com'; // Live API
 
-// ✅ FIX: Separate checkout URL base for sandbox
-const PADDLE_CHECKOUT_BASE = config.PADDLE_ENVIRONMENT === 'production'
-  ? 'https://buy.paddle.com/checkout'
-  : 'https://sandbox-buy.paddle.com/checkout';
-
-console.log('🔧 Paddle Configuration:');
-console.log('   Environment:', config.PADDLE_ENVIRONMENT || 'sandbox');
+console.log('🔧 Paddle Service Initialized:');
 console.log('   API Base:', PADDLE_API_BASE);
-console.log('   Checkout Base:', PADDLE_CHECKOUT_BASE);
+console.log('   Environment: LIVE (with test cards)');
+
+// ✅ Helper: Get Paddle Price ID from plan name
+const getPaddlePriceId = (planName) => {
+  if (!planName) {
+    throw new Error('Plan name is required to get Paddle Price ID');
+  }
+
+  // Normalize plan name: "Pay-As-You-Go" → "pay-as-you-go"
+  const normalizedName = planName.toLowerCase().replace(/\s+/g, '-');
+  
+  const priceIdMap = {
+    'pay-as-you-go': process.env.PADDLE_PRICE_PAY_AS_YOU_GO,
+    'monthly': process.env.PADDLE_PRICE_MONTHLY,
+    'quarterly': process.env.PADDLE_PRICE_QUARTERLY,
+    '3-month-quarterly': process.env.PADDLE_PRICE_QUARTERLY, // Alternative name
+    'semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL,
+    '6-month-semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL, // Alternative name
+    'annual': process.env.PADDLE_PRICE_ANNUAL,
+    'yearly': process.env.PADDLE_PRICE_ANNUAL, // Alternative name
+  };
+
+  const priceId = priceIdMap[normalizedName];
+  
+  if (!priceId) {
+    console.error(`❌ No Paddle Price ID found for plan: "${planName}" (normalized: "${normalizedName}")`);
+    console.error('Available mappings:', Object.keys(priceIdMap));
+    console.error('Environment variables:', {
+      PADDLE_PRICE_PAY_AS_YOU_GO: process.env.PADDLE_PRICE_PAY_AS_YOU_GO,
+      PADDLE_PRICE_MONTHLY: process.env.PADDLE_PRICE_MONTHLY,
+      PADDLE_PRICE_QUARTERLY: process.env.PADDLE_PRICE_QUARTERLY,
+      PADDLE_PRICE_SEMI_ANNUAL: process.env.PADDLE_PRICE_SEMI_ANNUAL,
+      PADDLE_PRICE_ANNUAL: process.env.PADDLE_PRICE_ANNUAL,
+    });
+    throw new Error(`Missing Paddle Price ID for plan: ${planName}. Please add to .env file.`);
+  }
+  
+  return priceId;
+};
 
 export const paddleService = {
   /**
-   * Create transaction with return URLs
+   * Create transaction (one-time payment - for pay-as-you-go)
    */
   createTransaction: async (data) => {
     try {
-      const { user_id, email, amount, currency, planId, paddle_price_id } = data;
+      const { user_id, email, amount, currency, planId } = data;
+
+      if (!planId) {
+        throw new Error('Plan ID is required for Paddle transaction');
+      }
+
+      // Get plan details to find price ID
+      const { subscriptionQueries } = await import('../models/subscriptionQueries.js');
+      const planResult = await subscriptionQueries.getPlanById(planId);
+      
+      if (!planResult.rows || planResult.rows.length === 0) {
+        throw new Error(`Plan not found: ${planId}`);
+      }
+      
+      const plan = planResult.rows[0];
+      const paddle_price_id = getPaddlePriceId(plan.plan_name);
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🏓 Creating Paddle Transaction (2025 API)');
+      console.log('🏓 Creating Paddle Transaction (One-Time)');
+      console.log(`   Plan: ${plan.plan_name} (ID: ${planId})`);
       console.log(`   Amount: ${amount} ${currency}`);
-      console.log(`   Email: ${email}`);
       console.log(`   Price ID: ${paddle_price_id}`);
+      console.log(`   User: ${user_id}`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      // ✅ Set return URLs (where user goes after payment)
       const returnUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+      const requestBody = {
+        items: [
+          {
+            price_id: paddle_price_id,
+            quantity: 1,
+          },
+        ],
+        custom_data: {
+          user_id: user_id.toString(),
+          plan_id: planId.toString(),
+        },
+        checkout: {
+          settings: {
+            success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}&status=success`,
+          },
+        },
+      };
+
+      console.log('📤 Paddle API Request:', JSON.stringify(requestBody, null, 2));
 
       const response = await axios.post(
         `${PADDLE_API_BASE}/transactions`,
-        {
-          items: [
-            {
-              price_id: paddle_price_id,
-              quantity: 1,
-            },
-          ],
-          // ✅ REMOVED: customer_email - Let Paddle collect it at checkout
-          // This makes transaction status "ready" instead of "draft"
-          custom_data: {
-            user_id: user_id.toString(),
-            plan_id: planId?.toString(),
-          },
-          // ✅ ADD: Checkout settings with return URLs
-          checkout: {
-            settings: {
-              success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}`,
-              // Optional: Add cancel URL
-              // cancel_url: `${returnUrl}/pricing`,
-            },
-          },
-        },
+        requestBody,
         {
           headers: {
             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
@@ -69,33 +111,30 @@ export const paddleService = {
       );
 
       const transaction = response.data.data;
-
-      // ✅ FIX: Always construct sandbox URL (don't trust Paddle's returned URL)
-      const isSandbox = PADDLE_API_BASE.includes('sandbox');
-      const checkoutUrl = isSandbox 
-        ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
-        : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
-
-      console.log('✅ Paddle transaction created:', transaction.id);
-      console.log(`   Transaction status: ${transaction.status}`);
-      console.log(`   Is sandbox: ${isSandbox}`);
-      console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
-      console.log(`   Final checkout URL: ${checkoutUrl}`);
       
-      // ⚠️ Warn if transaction is still in draft
-      if (transaction.status === 'draft') {
-        console.log('⚠️  Transaction is in draft status - checkout may not load immediately');
-      }
+      // Construct checkout URL (live mode)
+      const checkoutUrl = transaction.checkout?.url || 
+                         `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`;
+
+      console.log('✅ Paddle Transaction Created:');
+      console.log(`   Transaction ID: ${transaction.id}`);
+      console.log(`   Status: ${transaction.status}`);
+      console.log(`   Checkout URL: ${checkoutUrl}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       return {
         success: true,
         transaction_id: transaction.id,
         checkout_url: checkoutUrl,
+        checkoutUrl: checkoutUrl, // Alias for compatibility
         status: transaction.status,
       };
     } catch (error) {
-      console.error('❌ Paddle transaction creation error:', error.response?.data || error.message);
-      throw new Error(`Paddle error: ${error.response?.data?.error?.detail || error.message}`);
+      console.error('❌ Paddle Transaction Error:', error.response?.data || error.message);
+      if (error.response?.data?.error?.errors) {
+        console.error('📋 Detailed errors:', JSON.stringify(error.response.data.error.errors, null, 2));
+      }
+      throw new Error(`Paddle transaction failed: ${error.response?.data?.error?.detail || error.message}`);
     }
   },
 
@@ -104,44 +143,55 @@ export const paddleService = {
    */
   createSubscription: async (data) => {
     try {
-      const { user_id, email, paddle_price_id, planId } = data;
+      const { user_id, email, planId } = data;
+
+      if (!planId) {
+        throw new Error('Plan ID is required for Paddle subscription');
+      }
+
+      // Get plan details
+      const { subscriptionQueries } = await import('../models/subscriptionQueries.js');
+      const planResult = await subscriptionQueries.getPlanById(planId);
+      
+      if (!planResult.rows || planResult.rows.length === 0) {
+        throw new Error(`Plan not found: ${planId}`);
+      }
+      
+      const plan = planResult.rows[0];
+      const paddle_price_id = getPaddlePriceId(plan.plan_name);
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔄 Creating Paddle Subscription');
-      console.log(`   Email: ${email}`);
+      console.log('🔄 Creating Paddle Subscription (Recurring)');
+      console.log(`   Plan: ${plan.plan_name} (ID: ${planId})`);
       console.log(`   Price ID: ${paddle_price_id}`);
+      console.log(`   User: ${user_id}`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      // ✅ CHANGED: Don't create customer upfront - let Paddle handle it at checkout
-      // This makes the transaction "ready" instead of "draft"
-
-      // Create transaction for subscription
       const returnUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+      const requestBody = {
+        items: [
+          {
+            price_id: paddle_price_id,
+            quantity: 1,
+          },
+        ],
+        custom_data: {
+          user_id: user_id.toString(),
+          plan_id: planId.toString(),
+        },
+        checkout: {
+          settings: {
+            success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}&status=success`,
+          },
+        },
+      };
+
+      console.log('📤 Paddle API Request:', JSON.stringify(requestBody, null, 2));
 
       const response = await axios.post(
         `${PADDLE_API_BASE}/transactions`,
-        {
-          items: [
-            {
-              price_id: paddle_price_id,
-              quantity: 1,
-            },
-          ],
-          // ✅ REMOVED: customer_id - Let Paddle collect customer info at checkout
-          // customer_email can be added to pre-fill the form (optional)
-          // customer_email: email,
-          custom_data: {
-            user_id: user_id.toString(),
-            plan_id: planId?.toString(),
-          },
-          // ✅ REMOVED: billing_details (not needed - price already defines recurring)
-          // ✅ ADD: Return URLs
-          checkout: {
-            settings: {
-              success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}`,
-            },
-          },
-        },
+        requestBody,
         {
           headers: {
             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
@@ -151,40 +201,30 @@ export const paddleService = {
       );
 
       const transaction = response.data.data;
-
-      // ✅ FIX: Always construct sandbox URL (don't trust Paddle's returned URL)
-      const isSandbox = PADDLE_API_BASE.includes('sandbox');
-      const checkoutUrl = isSandbox 
-        ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
-        : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
-
-      console.log('✅ Paddle subscription transaction created');
-      console.log(`   Transaction ID: ${transaction.id}`);
-      console.log(`   Transaction status: ${transaction.status}`);
-      console.log(`   Is sandbox: ${isSandbox}`);
-      console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
-      console.log(`   Final checkout URL: ${checkoutUrl}`);
       
-      // ⚠️ Warn if transaction is still in draft
-      if (transaction.status === 'draft') {
-        console.log('⚠️  Transaction is in draft status - checkout may not load immediately');
-      }
+      // Construct checkout URL (live mode)
+      const checkoutUrl = transaction.checkout?.url || 
+                         `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`;
+
+      console.log('✅ Paddle Subscription Created:');
+      console.log(`   Transaction ID: ${transaction.id}`);
+      console.log(`   Status: ${transaction.status}`);
+      console.log(`   Checkout URL: ${checkoutUrl}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       return {
         success: true,
         transaction_id: transaction.id,
         checkout_url: checkoutUrl,
+        checkoutUrl: checkoutUrl, // Alias for compatibility
         status: transaction.status,
       };
     } catch (error) {
-      console.error('❌ Paddle subscription error:', error.response?.data || error.message);
-      
-      // ✅ Log detailed error information
+      console.error('❌ Paddle Subscription Error:', error.response?.data || error.message);
       if (error.response?.data?.error?.errors) {
         console.error('📋 Detailed errors:', JSON.stringify(error.response.data.error.errors, null, 2));
       }
-      
-      throw new Error(`Paddle error: ${error.response?.data?.error?.detail || error.message}`);
+      throw new Error(`Paddle subscription failed: ${error.response?.data?.error?.detail || error.message}`);
     }
   },
 
@@ -205,6 +245,25 @@ export const paddleService = {
       return response.data.data;
     } catch (error) {
       console.error('Get transaction error:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Verify transaction (used by paymentController)
+   */
+  verifyTransaction: async (transactionId) => {
+    try {
+      const transaction = await paddleService.getTransaction(transactionId);
+
+      return {
+        verified: transaction.status === 'completed',
+        status: transaction.status,
+        amount: transaction.details?.totals?.total,
+        currency: transaction.currency_code,
+      };
+    } catch (error) {
+      console.error('Verify transaction error:', error);
       throw error;
     }
   },
@@ -242,32 +301,308 @@ export const paddleService = {
   },
 
   /**
-   * Verify payment
+   * Verify payment (alias for verifyTransaction)
    */
   verifyPayment: async (transactionId) => {
-    try {
-      const transaction = await paddleService.getTransaction(transactionId);
-
-      return {
-        verified: transaction.status === 'completed',
-        status: transaction.status,
-        amount: transaction.details.totals.total,
-        currency: transaction.currency_code,
-      };
-    } catch (error) {
-      console.error('Verify payment error:', error);
-      throw error;
-    }
+    return paddleService.verifyTransaction(transactionId);
   },
 
   /**
-   * OLD METHOD (Deprecated)
+   * OLD METHOD (Deprecated) - Keep for backwards compatibility
    */
   createCheckout: async (data) => {
     console.warn('⚠️  createCheckout is deprecated, use createTransaction instead');
     return paddleService.createTransaction(data);
   },
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // backend/src/services/paddleService.js
+// // Updated with return URLs
+
+// import axios from 'axios';
+// import { config } from '../config/env.js';
+
+// const PADDLE_API_BASE = config.PADDLE_ENVIRONMENT === 'production'
+//   ? 'https://api.paddle.com'
+//   : 'https://sandbox-api.paddle.com';
+
+// // ✅ FIX: Separate checkout URL base for sandbox
+// const PADDLE_CHECKOUT_BASE = config.PADDLE_ENVIRONMENT === 'production'
+//   ? 'https://buy.paddle.com/checkout'
+//   : 'https://sandbox-buy.paddle.com/checkout';
+
+// console.log('🔧 Paddle Configuration:');
+// console.log('   Environment:', config.PADDLE_ENVIRONMENT || 'sandbox');
+// console.log('   API Base:', PADDLE_API_BASE);
+// console.log('   Checkout Base:', PADDLE_CHECKOUT_BASE);
+
+// export const paddleService = {
+//   /**
+//    * Create transaction with return URLs
+//    */
+//   createTransaction: async (data) => {
+//     try {
+//       const { user_id, email, amount, currency, planId, paddle_price_id } = data;
+
+//       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+//       console.log('🏓 Creating Paddle Transaction (2025 API)');
+//       console.log(`   Amount: ${amount} ${currency}`);
+//       console.log(`   Email: ${email}`);
+//       console.log(`   Price ID: ${paddle_price_id}`);
+//       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+//       // ✅ Set return URLs (where user goes after payment)
+//       const returnUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+//       const response = await axios.post(
+//         `${PADDLE_API_BASE}/transactions`,
+//         {
+//           items: [
+//             {
+//               price_id: paddle_price_id,
+//               quantity: 1,
+//             },
+//           ],
+//           // ✅ REMOVED: customer_email - Let Paddle collect it at checkout
+//           // This makes transaction status "ready" instead of "draft"
+//           custom_data: {
+//             user_id: user_id.toString(),
+//             plan_id: planId?.toString(),
+//           },
+//           // ✅ ADD: Checkout settings with return URLs
+//           checkout: {
+//             settings: {
+//               success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}`,
+//               // Optional: Add cancel URL
+//               // cancel_url: `${returnUrl}/pricing`,
+//             },
+//           },
+//         },
+//         {
+//           headers: {
+//             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
+//             'Content-Type': 'application/json',
+//           },
+//         }
+//       );
+
+//       const transaction = response.data.data;
+
+//       // ✅ FIX: Always construct sandbox URL (don't trust Paddle's returned URL)
+//       const isSandbox = PADDLE_API_BASE.includes('sandbox');
+//       const checkoutUrl = isSandbox 
+//         ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
+//         : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
+
+//       console.log('✅ Paddle transaction created:', transaction.id);
+//       console.log(`   Transaction status: ${transaction.status}`);
+//       console.log(`   Is sandbox: ${isSandbox}`);
+//       console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
+//       console.log(`   Final checkout URL: ${checkoutUrl}`);
+      
+//       // ⚠️ Warn if transaction is still in draft
+//       if (transaction.status === 'draft') {
+//         console.log('⚠️  Transaction is in draft status - checkout may not load immediately');
+//       }
+
+//       return {
+//         success: true,
+//         transaction_id: transaction.id,
+//         checkout_url: checkoutUrl,
+//         status: transaction.status,
+//       };
+//     } catch (error) {
+//       console.error('❌ Paddle transaction creation error:', error.response?.data || error.message);
+//       throw new Error(`Paddle error: ${error.response?.data?.error?.detail || error.message}`);
+//     }
+//   },
+
+//   /**
+//    * Create subscription (recurring payment)
+//    */
+//   createSubscription: async (data) => {
+//     try {
+//       const { user_id, email, paddle_price_id, planId } = data;
+
+//       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+//       console.log('🔄 Creating Paddle Subscription');
+//       console.log(`   Email: ${email}`);
+//       console.log(`   Price ID: ${paddle_price_id}`);
+//       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+//       // ✅ CHANGED: Don't create customer upfront - let Paddle handle it at checkout
+//       // This makes the transaction "ready" instead of "draft"
+
+//       // Create transaction for subscription
+//       const returnUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+//       const response = await axios.post(
+//         `${PADDLE_API_BASE}/transactions`,
+//         {
+//           items: [
+//             {
+//               price_id: paddle_price_id,
+//               quantity: 1,
+//             },
+//           ],
+//           // ✅ REMOVED: customer_id - Let Paddle collect customer info at checkout
+//           // customer_email can be added to pre-fill the form (optional)
+//           // customer_email: email,
+//           custom_data: {
+//             user_id: user_id.toString(),
+//             plan_id: planId?.toString(),
+//           },
+//           // ✅ REMOVED: billing_details (not needed - price already defines recurring)
+//           // ✅ ADD: Return URLs
+//           checkout: {
+//             settings: {
+//               success_url: `${returnUrl}/payment/callback?gateway=paddle&plan_id=${planId}`,
+//             },
+//           },
+//         },
+//         {
+//           headers: {
+//             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
+//             'Content-Type': 'application/json',
+//           },
+//         }
+//       );
+
+//       const transaction = response.data.data;
+
+//       // ✅ FIX: Always construct sandbox URL (don't trust Paddle's returned URL)
+//       const isSandbox = PADDLE_API_BASE.includes('sandbox');
+//       const checkoutUrl = isSandbox 
+//         ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
+//         : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
+
+//       console.log('✅ Paddle subscription transaction created');
+//       console.log(`   Transaction ID: ${transaction.id}`);
+//       console.log(`   Transaction status: ${transaction.status}`);
+//       console.log(`   Is sandbox: ${isSandbox}`);
+//       console.log(`   Paddle returned URL: ${transaction.checkout?.url}`);
+//       console.log(`   Final checkout URL: ${checkoutUrl}`);
+      
+//       // ⚠️ Warn if transaction is still in draft
+//       if (transaction.status === 'draft') {
+//         console.log('⚠️  Transaction is in draft status - checkout may not load immediately');
+//       }
+
+//       return {
+//         success: true,
+//         transaction_id: transaction.id,
+//         checkout_url: checkoutUrl,
+//         status: transaction.status,
+//       };
+//     } catch (error) {
+//       console.error('❌ Paddle subscription error:', error.response?.data || error.message);
+      
+//       // ✅ Log detailed error information
+//       if (error.response?.data?.error?.errors) {
+//         console.error('📋 Detailed errors:', JSON.stringify(error.response.data.error.errors, null, 2));
+//       }
+      
+//       throw new Error(`Paddle error: ${error.response?.data?.error?.detail || error.message}`);
+//     }
+//   },
+
+//   /**
+//    * Get transaction details
+//    */
+//   getTransaction: async (transactionId) => {
+//     try {
+//       const response = await axios.get(
+//         `${PADDLE_API_BASE}/transactions/${transactionId}`,
+//         {
+//           headers: {
+//             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
+//           },
+//         }
+//       );
+
+//       return response.data.data;
+//     } catch (error) {
+//       console.error('Get transaction error:', error.response?.data || error.message);
+//       throw error;
+//     }
+//   },
+
+//   /**
+//    * Cancel subscription
+//    */
+//   cancelSubscription: async (subscriptionId) => {
+//     try {
+//       console.log(`🛑 Canceling Paddle subscription: ${subscriptionId}`);
+
+//       const response = await axios.post(
+//         `${PADDLE_API_BASE}/subscriptions/${subscriptionId}/cancel`,
+//         {
+//           effective_from: 'next_billing_period',
+//         },
+//         {
+//           headers: {
+//             'Authorization': `Bearer ${config.PADDLE_API_KEY}`,
+//             'Content-Type': 'application/json',
+//           },
+//         }
+//       );
+
+//       console.log('✅ Subscription canceled');
+
+//       return {
+//         success: true,
+//         subscription: response.data.data,
+//       };
+//     } catch (error) {
+//       console.error('Cancel subscription error:', error.response?.data || error.message);
+//       throw error;
+//     }
+//   },
+
+//   /**
+//    * Verify payment
+//    */
+//   verifyPayment: async (transactionId) => {
+//     try {
+//       const transaction = await paddleService.getTransaction(transactionId);
+
+//       return {
+//         verified: transaction.status === 'completed',
+//         status: transaction.status,
+//         amount: transaction.details.totals.total,
+//         currency: transaction.currency_code,
+//       };
+//     } catch (error) {
+//       console.error('Verify payment error:', error);
+//       throw error;
+//     }
+//   },
+
+//   /**
+//    * OLD METHOD (Deprecated)
+//    */
+//   createCheckout: async (data) => {
+//     console.warn('⚠️  createCheckout is deprecated, use createTransaction instead');
+//     return paddleService.createTransaction(data);
+//   },
+// };
 // // backend/src/services/paddleService.js
 // // Updated with return URLs
 

@@ -17,10 +17,20 @@ export const config = {
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   
   // Paddle
-  PADDLE_API_KEY: process.env.PADDLE_API_KEY,
-  PADDLE_CLIENT_TOKEN: process.env.PADDLE_CLIENT_TOKEN,
+PADDLE_API_KEY: process.env.PADDLE_API_KEY,
+  PADDLE_ENVIRONMENT: process.env.PADDLE_ENVIRONMENT || 'production',
   PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET,
+
+    PADDLE_PRICES: {
+    'pay-as-you-go': process.env.PADDLE_PRICE_PAY_AS_YOU_GO,
+    'monthly': process.env.PADDLE_PRICE_MONTHLY,
+    'quarterly': process.env.PADDLE_PRICE_QUARTERLY,
+    'semi-annual': process.env.PADDLE_PRICE_SEMI_ANNUAL,
+    'annual': process.env.PADDLE_PRICE_ANNUAL,
+  },
   
   // API
   API_BASE_URL: process.env.API_BASE_URL || 'http://localhost:3003',
+
+   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
 };
