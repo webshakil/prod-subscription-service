@@ -98,9 +98,11 @@ export const paddleService = {
       
       // ✅ FIX: Force correct checkout URL based on environment
       const isSandbox = PADDLE_API_BASE.includes('sandbox');
-      const checkoutUrl = isSandbox
-        ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
-        : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
+      const checkoutUrl = transaction.checkout?.url;
+
+      // const checkoutUrl = isSandbox
+      //   ? `https://sandbox-buy.paddle.com/checkout?_ptxn=${transaction.id}`
+      //   : (transaction.checkout?.url || `https://buy.paddle.com/checkout?_ptxn=${transaction.id}`);
 
       console.log('✅ Transaction Created:');
       console.log(`   ID: ${transaction.id}`);
